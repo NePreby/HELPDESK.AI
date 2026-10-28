@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -10,22 +10,79 @@ import {
   Platform, 
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
 import { COLORS, SPACING, SHADOWS } from '../../styles/theme';
-import { ArrowLeft, Sparkles, Send, Image as ImageIcon, X } from 'lucide-react-native';
+import { ArrowLeft, Sparkles, Send, Image as ImageIcon, X, Save, CheckCircle2 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useNotification } from '../../components/NotificationProvider';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 
+const DRAFT_STORAGE_KEY = '@ticket_create_draft_v1';
+
 const CreateTicketScreen = () => {
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [image, setImage] = useState(null);
+  const [draftSaved, setDraftSaved] = useState(false);
   const navigation = useNavigation();
   const { success, error: notifyError } = useNotification();
+
+  // Load draft on mount
+  useEffect(() => {
+    const loadDraft = async () => {
+      try {
+        const savedDraft = await AsyncStorage.getItem(DRAFT_STORAGE_KEY);
+        if (savedDraft) {
+          const { description: draftDesc, image: draftImg, timestamp } = JSON.parse(savedDraft);
+          if (draftDesc || draftImg) {
+            Alert.alert(
+              'Restore Draft?',
+              'You have an unsaved ticket draft from your previous session. Would you like to restore it?',
+              [
+                { text: 'Discard', style: 'destructive', onPress: () => AsyncStorage.removeItem(DRAFT_STORAGE_KEY) },
+                { 
+                  text: 'Restore', 
+                  onPress: () => {
+                    if (draftDesc) setDescription(draftDesc);
+                    if (draftImg) setImage(draftImg);
+                    setDraftSaved(true);
+                  } 
+                }
+              ]
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to restore draft from AsyncStorage:', err);
+      }
+    };
+    loadDraft();
+  }, []);
+
+  // Auto-save draft on input change with debounce
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (description.trim() || image) {
+        try {
+          await AsyncStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
+            description,
+            image,
+            timestamp: new Date().toISOString()
+          }));
+          setDraftSaved(true);
+        } catch (err) {
+          console.warn('Failed to save draft:', err);
+        }
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [description, image]);
 
   const pickImage = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -59,6 +116,10 @@ const CreateTicketScreen = () => {
         });
       }
 
+      // Clear draft after successful creation transition
+      await AsyncStorage.removeItem(DRAFT_STORAGE_KEY);
+      setDraftSaved(false);
+
       // Trigger success haptic feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
@@ -82,7 +143,14 @@ const CreateTicketScreen = () => {
             <ArrowLeft size={24} color={COLORS.text} />
           </TouchableOpacity>
           <Text style={styles.title}>New Request</Text>
-          <View style={{ width: 40 }} />
+          <View style={styles.draftBadge}>
+            {draftSaved && (
+              <View style={styles.draftIndicator}>
+                <CheckCircle2 size={14} color={COLORS.primary} />
+                <Text style={styles.draftText}>Draft saved</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -105,7 +173,10 @@ const CreateTicketScreen = () => {
               placeholderTextColor={COLORS.textMuted}
               multiline
               value={description}
-              onChangeText={setDescription}
+              onChangeText={(text) => {
+                setDescription(text);
+                setDraftSaved(false);
+              }}
               numberOfLines={8}
               textAlignVertical="top"
             />
@@ -162,6 +233,9 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: COLORS.surfaceDark },
   title: { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  draftBadge: { minWidth: 80, alignItems: 'flex-end' },
+  draftIndicator: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.primaryLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  draftText: { fontSize: 11, color: COLORS.primaryDark, fontWeight: '600' },
   scrollContent: { padding: 24 },
   aiBanner: {
     flexDirection: 'row',
