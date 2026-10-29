@@ -14,6 +14,7 @@ import warnings
 import logging
 import hashlib
 from contextlib import asynccontextmanager
+from backend.middleware.security_middleware import SecurityHeadersMiddleware
 
 # Suppress harmless PyTorch CPU pin_memory warning
 warnings.filterwarnings("ignore", message="'pin_memory'")
@@ -350,6 +351,8 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Unified middleware: enforce request size limits + add X-Request-ID tracking
 @app.middleware("http")

@@ -16,7 +16,7 @@ from starlette.responses import PlainTextResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from backend.middleware.security_headers import (
+from backend.middleware.security_middleware import (
     SecurityHeadersMiddleware,
     _build_csp,
     _build_permissions_policy,
