@@ -157,6 +157,7 @@ export function AttachmentDropzone({
                         onChange={handleInputChange}
                         accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.log"
                         disabled={disabled}
+                        tabIndex={-1}
                         className="hidden"
                         aria-hidden="true"
                     />

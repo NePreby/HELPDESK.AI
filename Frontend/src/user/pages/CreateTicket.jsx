@@ -550,7 +550,7 @@ const CreateTicket = () => {
                                             setFile(selectedFile);
                                             if (selectedFile.type?.startsWith('image/')) {
                                                 setImagePreview(URL.createObjectURL(selectedFile));
-                                                processOCR(selectedFile);
+                                                void processOCR(selectedFile);
                                             } else {
                                                 setImagePreview(null);
                                                 setExtractedOCR('');
