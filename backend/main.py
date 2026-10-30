@@ -14,6 +14,8 @@ import warnings
 import logging
 import hashlib
 from contextlib import asynccontextmanager
+from typing import Optional, Dict, List, Any, Union, Set, Tuple
+from backend.auth_cookie import get_current_user
 
 # Suppress harmless PyTorch CPU pin_memory warning
 warnings.filterwarnings("ignore", message="'pin_memory'")

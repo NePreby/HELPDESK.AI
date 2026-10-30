@@ -117,3 +117,7 @@ def get_logger(name: Optional[str] = None):
     """
     configure_logging()
     return structlog.get_logger(name)
+
+
+# Default root logger instance for direct import
+logger = get_logger('backend')
