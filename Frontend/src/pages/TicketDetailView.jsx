@@ -1,3 +1,4 @@
+import ErrorBoundary from '../components/ErrorBoundary';
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -9,7 +10,7 @@ import {
 import useTicketStore from '../store/ticketStore';
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
-function TicketDetailView() {
+function TicketDetailViewContent() {
     const { ticket_id } = useParams();
     const { tickets, appendMessage, updateTicket } = useTicketStore();
     const navigate = useNavigate();
@@ -358,6 +359,14 @@ function TicketDetailView() {
                 </div>
             </div>
         </main>
+    );
+}
+
+export function TicketDetailView(props) {
+    return (
+        <ErrorBoundary>
+            <TicketDetailViewContent {...props} />
+        </ErrorBoundary>
     );
 }
 
