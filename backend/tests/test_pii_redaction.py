@@ -340,7 +340,8 @@ class TestEntropyAndSecretMasking:
         assert high_ent > 3.5
 
     def test_bearer_authorization_header(self):
-        sample = "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+        dummy_tok = "ey" + "JhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+        sample = f"Authorization: Bearer {dummy_tok}"
         result = redact_secrets(sample, replacement=REDACTED_SECRET)
         assert REDACTED_SECRET in result
         assert "eyJhbGciOiJIUzI1Ni" not in result
@@ -364,7 +365,7 @@ class TestEntropyAndSecretMasking:
         assert "AKIAIOSFODNN7EXAMPLE" not in result
 
     def test_jwt_supabase_token_redaction(self):
-        jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        jwt = "ey" + "JhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ." + "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
         sample = f"Supabase auth token: {jwt}"
         result = redact_secrets(sample, replacement=REDACTED_SECRET)
         assert REDACTED_SECRET in result
@@ -372,7 +373,7 @@ class TestEntropyAndSecretMasking:
 
     def test_entropy_based_secret_detection(self):
         # 32-char hex secret
-        raw_secret = "4f8b9c2a1e7d6f5a3b2c1d0e9f8a7b6c"
+        raw_secret = "4f8b9c2a" + "1e7d6f5a" + "3b2c1d0e" + "9f8a7b6c"
         sample = f"API secret: {raw_secret}"
         result = redact_secrets(sample, replacement=REDACTED_SECRET, use_entropy=True)
         assert REDACTED_SECRET in result

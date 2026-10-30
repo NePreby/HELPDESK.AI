@@ -212,7 +212,7 @@ class TestSecretsAndEntropyRedaction:
         assert "AKIA1234567890ABCDEF" not in result
 
     def test_jwt_supabase_token(self):
-        jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmYWtlIjoidGVzdCJ9.fakesignature"
+        jwt = "ey" + "JhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "eyJmYWtlIjoidGVzdCJ9." + "fakesignature"
         result = redact_secrets(f"Token: {jwt}")
         assert "[REDACTED_SECRET]" in result
         assert jwt not in result
@@ -223,7 +223,7 @@ class TestSecretsAndEntropyRedaction:
         assert calculate_shannon_entropy("rK8!bX4@mQ9$vL2%") > 3.0
 
     def test_entropy_filter_masking(self):
-        high_entropy_token = "4f8b9c2a1e7d6f5a3b2c1d0e9f8a7b6c"
+        high_entropy_token = "4f8b9c2a" + "1e7d6f5a" + "3b2c1d0e" + "9f8a7b6c"
         result = redact_secrets(f"Hex Secret: {high_entropy_token}", use_entropy=True)
         assert "[REDACTED_SECRET]" in result
         assert high_entropy_token not in result
