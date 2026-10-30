@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 import time
@@ -108,13 +108,11 @@ class ConnectionManager:
 
     async def stop(self) -> None:
         """Cancel background tasks and gracefully close all active connections."""
-        for task in (self._heartbeat_task, self._eviction_task):
-            if task:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+        tasks = [t for t in (self._heartbeat_task, self._eviction_task) if t and not t.done()]
+        for t in tasks:
+            t.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         async with self._global_lock:
             for tc in list(self._connections.values()):
@@ -207,7 +205,7 @@ class ConnectionManager:
                 "user_id": client_id,
                 "company_id": company_id,
                 "role": role,
-                "connected_at": datetime.utcnow().isoformat(),
+                "connected_at": datetime.now(timezone.utc).isoformat(),
             }
             self.connection_metadata[ws] = meta
 
@@ -346,7 +344,7 @@ class ConnectionManager:
         await self.send_personal_message({
             "type": "ticket_subscribed",
             "ticket_id": ticket_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }, websocket)
 
     async def subscribe_ticket(self, ticket_id: str, websocket: WebSocket) -> None:
@@ -485,7 +483,7 @@ class ConnectionManager:
             "update_type": update_type,
             "ticket_id": ticket_id,
             "data": data,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         # Send to room subscribers
@@ -523,7 +521,7 @@ class ConnectionManager:
             "sender_id": sender_id,
             "sender_name": sender_name,
             "message": message_text,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         subscribers = list(self.ticket_subscriptions.get(ticket_id, set()))
