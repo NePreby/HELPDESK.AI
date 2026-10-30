@@ -63,6 +63,28 @@ class TestSetupBranchProtection:
         assert payload["required_pull_request_reviews"]["dismiss_stale_reviews"] is False
         assert payload["required_pull_request_reviews"]["require_code_owner_reviews"] is False
 
+    def test_sanitization_valid_inputs(self):
+        assert sbp.sanitize_repo("riteshbonthalakoti/HELPDESK.AI") == "riteshbonthalakoti/HELPDESK.AI"
+        assert sbp.sanitize_branch("gssoc") == "gssoc"
+        assert sbp.sanitize_branch("feature/branch-1.0") == "feature/branch-1.0"
+
+    def test_sanitization_rejects_argument_injection(self):
+        with pytest.raises(ValueError, match="Security validation failed"):
+            sbp.sanitize_repo("--help")
+
+        with pytest.raises(ValueError, match="Security validation failed"):
+            sbp.sanitize_repo("invalid-repo-without-slash")
+
+        with pytest.raises(ValueError, match="Security validation failed"):
+            sbp.sanitize_branch("-XDELETE")
+
+        with pytest.raises(ValueError, match="Security validation failed"):
+            sbp.sanitize_branch("branch/with/../traversal")
+
+    def test_setup_branch_protection_rejects_malicious_inputs(self):
+        ret = sbp.setup_branch_protection(repo="--injected-arg", branch="main")
+        assert ret == 2
+
     def test_dry_run_does_not_call_subprocess(self):
         with patch("subprocess.run") as mock_run:
             ret = sbp.setup_branch_protection(

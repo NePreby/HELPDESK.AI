@@ -7,12 +7,33 @@ Supports configurable target branch, repository, and admin enforcement.
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from typing import Any, Dict, Optional
 
 DEFAULT_REPO = "riteshbonthalakoti/HELPDESK.AI"
 DEFAULT_BRANCH = "gssoc"
+
+# Strict regex patterns to prevent CLI argument injection (SonarQube S8705)
+REPO_PATTERN = re.compile(r"^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$")
+BRANCH_PATTERN = re.compile(r"^[a-zA-Z0-9_./-]+$")
+
+
+def sanitize_repo(repo: str) -> str:
+    """Validates and sanitizes repository identifier to prevent argument injection."""
+    cleaned = str(repo).strip()
+    if not REPO_PATTERN.match(cleaned) or cleaned.startswith("-") or ".." in cleaned:
+        raise ValueError(f"Security validation failed: Invalid repository format '{repo}'.")
+    return cleaned
+
+
+def sanitize_branch(branch: str) -> str:
+    """Validates and sanitizes branch name to prevent argument injection."""
+    cleaned = str(branch).strip()
+    if not BRANCH_PATTERN.match(cleaned) or cleaned.startswith("-") or ".." in cleaned:
+        raise ValueError(f"Security validation failed: Invalid branch name '{branch}'.")
+    return cleaned
 
 
 def build_protection_payload(
@@ -51,13 +72,20 @@ def setup_branch_protection(
     Returns:
         0 on success or dry-run, non-zero exit code on failure.
     """
+    try:
+        safe_repo = sanitize_repo(repo)
+        safe_branch = sanitize_branch(branch)
+    except ValueError as ve:
+        print(f"[SECURITY ERROR] {ve}", file=sys.stderr)
+        return 2
+
     payload = build_protection_payload(
         enforce_admins=enforce_admins,
         required_approving_review_count=required_reviews,
     )
 
-    endpoint = f"/repos/{repo}/branches/{branch}/protection"
-    print(f"Setting up branch protection for {repo} on branch '{branch}' (enforce_admins={enforce_admins})...")
+    endpoint = f"/repos/{safe_repo}/branches/{safe_branch}/protection"
+    print(f"Setting up branch protection for {safe_repo} on branch '{safe_branch}' (enforce_admins={enforce_admins})...")
 
     if dry_run:
         print("[DRY RUN] Would execute: gh api -X PUT " + endpoint)
