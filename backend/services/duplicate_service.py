@@ -15,6 +15,7 @@ class DuplicateService:
     def __init__(self):
         self.model = None
         self._loaded = False
+        self._load_failed = False
         # In-memory store: list of (ticket_id, embedding, text)
         self._tickets: list[tuple[str, object, str]] = []
         self.storage_file = os.path.join(os.path.dirname(__file__), "..", "data", "knowledge_base.json")
@@ -22,12 +23,17 @@ class DuplicateService:
 
     def load(self):
         """Load the sentence-transformer model and saved tickets."""
-        if self._loaded:
+        if self._loaded or getattr(self, "_load_failed", False):
             return
         
-        print("[DuplicateService] Loading model...")
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
-        self._loaded = True
+        try:
+            print("[DuplicateService] Loading model...")
+            self.model = SentenceTransformer("all-MiniLM-L6-v2")
+            self._loaded = True
+        except Exception as e:
+            print(f"[DuplicateService] Error loading model: {e}")
+            self._load_failed = True
+            return
         
         if os.path.exists(self.storage_file):
             print(f"[DuplicateService] Loading knowledge base from {self.storage_file}...")
@@ -87,10 +93,38 @@ class DuplicateService:
                 "similarity": float
             }
         """
+        if threshold is not None:
+            if not isinstance(threshold, (int, float)) or isinstance(threshold, bool):
+                raise ValueError("Threshold must be between 0.0 and 1.0")
+            if threshold < 0.0 or threshold > 1.0:
+                raise ValueError("Threshold must be between 0.0 and 1.0")
+
+        # Early return for empty or whitespace-only text to prevent unnecessary model loading & division errors
+        if not text or not str(text).strip():
+            return {
+                "is_duplicate": False,
+                "duplicate_ticket_id": None,
+                "similarity": 0.0,
+            }
+
+        if getattr(self, "_load_failed", False):
+            return {
+                "is_duplicate": False,
+                "duplicate_ticket_id": None,
+                "similarity": 0.0,
+            }
+
         self.load()
+
+        if getattr(self, "_load_failed", False) or not self._loaded:
+            return {
+                "is_duplicate": False,
+                "duplicate_ticket_id": None,
+                "similarity": 0.0,
+            }
         
         # Use provided threshold or default to global constant
-        active_threshold = threshold if threshold is not None else SIMILARITY_THRESHOLD
+        active_threshold = float(threshold) if threshold is not None else SIMILARITY_THRESHOLD
 
         if not self._tickets:
             return {

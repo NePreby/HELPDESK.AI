@@ -45,3 +45,22 @@ def test_check_duplicate_allows_threshold_boundaries_in_degraded_mode(threshold)
         "duplicate_ticket_id": None,
         "similarity": 0.0,
     }
+
+
+@pytest.mark.parametrize("invalid_threshold", [-0.5, -100.0, 1.01, 1.5, 99.0, "invalid", True, False])
+def test_check_duplicate_rejects_various_invalid_thresholds(invalid_threshold):
+    service = DuplicateService()
+    service._load_failed = True
+
+    with pytest.raises(ValueError, match="between 0.0 and 1.0"):
+        service.check_duplicate("ticket text", threshold=invalid_threshold)
+
+
+@pytest.mark.parametrize("valid_threshold", [0.0, 0.25, 0.5, 0.75, 1.0])
+def test_check_duplicate_accepts_valid_threshold_range(valid_threshold):
+    service = DuplicateService()
+    service._load_failed = True
+
+    result = service.check_duplicate("ticket text", threshold=valid_threshold)
+    assert result["is_duplicate"] is False
+    assert result["similarity"] == 0.0
