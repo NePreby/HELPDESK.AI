@@ -21,8 +21,11 @@ function safeGetItem(key) {
 
 /** Safely write to localStorage (no-op on error, e.g. incognito). */
 function safeSetItem(key, value) {
+    if (key === LS_KEY && !VALID_COMPANY_SIZES.includes(value)) {
+        return;
+    }
     try {
-        localStorage.setItem(key, value);
+        localStorage.setItem(key, String(value));
     } catch {
         // Silently ignore - localStorage may be unavailable in private browsing
     }
@@ -63,7 +66,7 @@ export default function ContactSales() {
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-        if (name === 'company_size') {
+        if (name === 'company_size' && VALID_COMPANY_SIZES.includes(value)) {
             safeSetItem(LS_KEY, value);
         }
         // Clear error on change
@@ -83,8 +86,8 @@ export default function ContactSales() {
             newErrors.name = 'Full name must contain only letters, spaces, hyphens, or apostrophes.';
         }
 
-        // Work Email: must have valid domain with TLD (e.g. abc@company.com)
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+        // Work Email: must have valid domain with TLD (e.g. abc@company.com) - linear non-backtracking
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         if (!formData.email.trim()) {
             newErrors.email = 'Work email is required.';
         } else if (!emailRegex.test(formData.email.trim())) {
@@ -99,9 +102,9 @@ export default function ContactSales() {
             }
         }
 
-        // Company Website: optional but if provided must be a valid URL
+        // Company Website: optional but if provided must be a valid URL - linear regex free of ReDoS
         if (formData.website && formData.website.trim()) {
-            const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
+            const urlRegex = /^(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?$/;
             if (!urlRegex.test(formData.website.trim())) {
                 newErrors.website = 'Please enter a valid website URL (e.g. https://company.com).';
             }
@@ -234,7 +237,7 @@ export default function ContactSales() {
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-semibold text-gray-700 ml-1">Full Name *</label>
+                                    <label htmlFor="cs-name" className="text-sm font-semibold text-gray-700 ml-1">Full Name *</label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                             <User className="h-5 w-5 text-gray-400" />
@@ -242,6 +245,7 @@ export default function ContactSales() {
                                         <input 
                                             type="text" 
                                             required 
+                                            id="cs-name"
                                             name="name"
                                             className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.name ? 'border-red-400' : 'border-gray-200'}`}
                                             placeholder="John Doe"
@@ -253,7 +257,7 @@ export default function ContactSales() {
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-semibold text-gray-700 ml-1">Work Email *</label>
+                                    <label htmlFor="cs-email" className="text-sm font-semibold text-gray-700 ml-1">Work Email *</label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                             <Mail className="h-5 w-5 text-gray-400" />
@@ -261,6 +265,7 @@ export default function ContactSales() {
                                         <input 
                                             type="email" 
                                             required 
+                                            id="cs-email"
                                             name="email"
                                             className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.email ? 'border-red-400' : 'border-gray-200'}`}
                                             placeholder="john@company.com"
@@ -274,7 +279,7 @@ export default function ContactSales() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-semibold text-gray-700 ml-1">Company Name *</label>
+                                    <label htmlFor="cs-company" className="text-sm font-semibold text-gray-700 ml-1">Company Name *</label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                             <Building2 className="h-5 w-5 text-gray-400" />
@@ -291,12 +296,13 @@ export default function ContactSales() {
                                     </div>
                                 </div>
                                 <div className="space-y-1.5 relative">
-                                    <label className="text-sm font-semibold text-gray-700 ml-1">Company Size</label>
+                                    <label htmlFor="cs-company-size" className="text-sm font-semibold text-gray-700 ml-1">Company Size</label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                             <Building2 className="h-5 w-5 text-gray-400" />
                                         </div>
                                         <select 
+                                            id="cs-company-size"
                                             name="company_size"
                                             className="w-full pl-11 pr-10 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 appearance-none cursor-pointer"
                                             value={formData.company_size}
@@ -316,13 +322,14 @@ export default function ContactSales() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-semibold text-gray-700 ml-1">Company Website</label>
+                                    <label htmlFor="cs-website" className="text-sm font-semibold text-gray-700 ml-1">Company Website</label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                             <Globe className="h-5 w-5 text-gray-400" />
                                         </div>
                                         <input 
                                             type="url" 
+                                            id="cs-website"
                                             name="website"
                                             className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.website ? 'border-red-400' : 'border-gray-200'}`}
                                             placeholder="https://company.com"
@@ -334,13 +341,14 @@ export default function ContactSales() {
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-semibold text-gray-700 ml-1">Phone Number</label>
+                                    <label htmlFor="cs-phone" className="text-sm font-semibold text-gray-700 ml-1">Phone Number</label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                             <Phone className="h-5 w-5 text-gray-400" />
                                         </div>
                                         <input 
                                             type="tel" 
+                                            id="cs-phone"
                                             name="phone"
                                             className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.phone ? 'border-red-400' : 'border-gray-200'}`}
                                             placeholder="+1 (555) 000-0000"
@@ -353,9 +361,10 @@ export default function ContactSales() {
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-sm font-semibold text-gray-700 ml-1">How can we help? *</label>
+                                <label htmlFor="cs-message" className="text-sm font-semibold text-gray-700 ml-1">How can we help? *</label>
                                 <textarea 
                                     required 
+                                    id="cs-message"
                                     name="message"
                                     rows="4"
                                     className="w-full p-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 resize-none" 
