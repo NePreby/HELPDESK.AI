@@ -1,29 +1,119 @@
 import React, { useState } from 'react';
  
 import { motion } from 'framer-motion';
-import { Building2, Mail, User, Phone, MessageSquare, ArrowRight, CheckCircle2, ShieldCheck, Zap, Server } from 'lucide-react';
+import { Building2, Mail, User, Phone, MessageSquare, ArrowRight, CheckCircle2, ShieldCheck, Zap, Server, Globe } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+
+// Valid company_size options - used for localStorage validation
+const VALID_COMPANY_SIZES = ['1-50', '50-200', '200-1000', '1000+'];
+const DEFAULT_COMPANY_SIZE = '50-200';
+const LS_KEY = 'contact_sales_company_size';
+
+/** Safely read from localStorage (returns null on error, e.g. incognito). */
+function safeGetItem(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
+
+/** Safely write to localStorage (no-op on error, e.g. incognito). */
+function safeSetItem(key, value) {
+    try {
+        localStorage.setItem(key, value);
+    } catch {
+        // Silently ignore - localStorage may be unavailable in private browsing
+    }
+}
+
+/** Safely remove from localStorage. */
+function safeRemoveItem(key) {
+    try {
+        localStorage.removeItem(key);
+    } catch {
+        // Silently ignore
+    }
+}
 
 export default function ContactSales() {
     const navigate = useNavigate();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        company: '',
-        phone: '',
-        company_size: '50-200',
-        message: ''
+    const [errors, setErrors] = useState({});
+    const [formData, setFormData] = useState(() => {
+        // Validate the stored company_size against known valid options
+        const stored = safeGetItem(LS_KEY);
+        const companySizeInit = VALID_COMPANY_SIZES.includes(stored)
+            ? stored
+            : DEFAULT_COMPANY_SIZE;
+
+        return {
+            name: '',
+            email: '',
+            company: '',
+            website: '',
+            phone: '',
+            company_size: companySizeInit,
+            message: ''
+        };
     });
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === 'company_size') {
+            safeSetItem(LS_KEY, value);
+        }
+        // Clear error on change
+        if (errors[name]) {
+            setErrors(prev => ({ ...prev, [name]: '' }));
+        }
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+
+        // Full Name: letters, spaces, hyphens, apostrophes only
+        const nameRegex = /^[a-zA-Z\s'\-]{2,100}$/;
+        if (!formData.name.trim()) {
+            newErrors.name = 'Full name is required.';
+        } else if (!nameRegex.test(formData.name.trim())) {
+            newErrors.name = 'Full name must contain only letters, spaces, hyphens, or apostrophes.';
+        }
+
+        // Work Email: must have valid domain with TLD (e.g. abc@company.com)
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+        if (!formData.email.trim()) {
+            newErrors.email = 'Work email is required.';
+        } else if (!emailRegex.test(formData.email.trim())) {
+            newErrors.email = 'Please enter a valid work email address (e.g. john@company.com).';
+        }
+
+        // Phone: optional but if provided must match valid format
+        if (formData.phone && formData.phone.trim()) {
+            const phoneRegex = /^\+?[\d\s\-().]{7,20}$/;
+            if (!phoneRegex.test(formData.phone.trim())) {
+                newErrors.phone = 'Please enter a valid phone number (e.g. +1 555 000 0000).';
+            }
+        }
+
+        // Company Website: optional but if provided must be a valid URL
+        if (formData.website && formData.website.trim()) {
+            const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i;
+            if (!urlRegex.test(formData.website.trim())) {
+                newErrors.website = 'Please enter a valid website URL (e.g. https://company.com).';
+            }
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!validateForm()) return;
         setIsSubmitting(true);
         
         try {
@@ -34,7 +124,8 @@ export default function ContactSales() {
                         name: formData.name,
                         email: formData.email,
                         company: formData.company,
-                        phone: formData.phone,
+                        website: formData.website || null,
+                        phone: formData.phone || null,
                         company_size: formData.company_size,
                         message: formData.message
                     }
@@ -42,6 +133,8 @@ export default function ContactSales() {
 
             if (error) throw error;
             
+            // Clear persisted dropdown so next visit starts fresh
+            safeRemoveItem(LS_KEY);
             setIsSuccess(true);
         } catch (error) {
             console.error('Error submitting form:', error);
@@ -63,7 +156,7 @@ export default function ContactSales() {
                         <CheckCircle2 className="w-10 h-10 text-emerald-600" />
                     </div>
                     <h2 className="text-3xl font-extrabold text-gray-900">Request Sent!</h2>
-                    <p className="text-gray-600">
+                    <p className="text-gray-600 dark:text-gray-400">
                         Thank you for your interest in HelpDesk.ai Enterprise. Our team will review your requirements and get back to you within 24 hours.
                     </p>
                     <button 
@@ -86,7 +179,7 @@ export default function ContactSales() {
                         <img src="/favicon.png" alt="H" className="w-8 h-8 object-contain" />
                         <span className="font-black text-2xl tracking-tighter text-emerald-900 italic uppercase">HelpDesk.ai</span>
                     </div>
-                    <button onClick={() => navigate('/')} className="text-sm font-semibold text-gray-500 hover:text-gray-900">
+                    <button onClick={() => navigate('/')} className="text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-gray-900">
                         Back to Home
                     </button>
                 </div>
@@ -135,7 +228,7 @@ export default function ContactSales() {
                     <div className="w-full max-w-xl mx-auto py-10">
                         <div className="mb-10 text-center lg:text-left">
                             <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Contact Sales</h2>
-                            <p className="text-gray-500 mt-2">Fill out the form below and an Enterprise architect will be in touch shortly.</p>
+                            <p className="text-gray-500 dark:text-gray-400 mt-2">Fill out the form below and an Enterprise architect will be in touch shortly.</p>
                         </div>
                         
                         <form onSubmit={handleSubmit} className="space-y-5">
@@ -150,12 +243,13 @@ export default function ContactSales() {
                                             type="text" 
                                             required 
                                             name="name"
-                                            className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900" 
+                                            className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.name ? 'border-red-400' : 'border-gray-200'}`}
                                             placeholder="John Doe"
                                             value={formData.name}
                                             onChange={handleChange}
                                         />
                                     </div>
+                                    {errors.name && <p className="text-red-500 text-xs mt-1 ml-1">{errors.name}</p>}
                                 </div>
 
                                 <div className="space-y-1.5">
@@ -168,12 +262,13 @@ export default function ContactSales() {
                                             type="email" 
                                             required 
                                             name="email"
-                                            className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900" 
+                                            className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.email ? 'border-red-400' : 'border-gray-200'}`}
                                             placeholder="john@company.com"
                                             value={formData.email}
                                             onChange={handleChange}
                                         />
                                     </div>
+                                    {errors.email && <p className="text-red-500 text-xs mt-1 ml-1">{errors.email}</p>}
                                 </div>
                             </div>
 
@@ -219,20 +314,41 @@ export default function ContactSales() {
                                 </div>
                             </div>
 
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-semibold text-gray-700 ml-1">Phone Number</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                        <Phone className="h-5 w-5 text-gray-400" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-semibold text-gray-700 ml-1">Company Website</label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <Globe className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input 
+                                            type="url" 
+                                            name="website"
+                                            className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.website ? 'border-red-400' : 'border-gray-200'}`}
+                                            placeholder="https://company.com"
+                                            value={formData.website}
+                                            onChange={handleChange}
+                                        />
                                     </div>
-                                    <input 
-                                        type="tel" 
-                                        name="phone"
-                                        className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900" 
-                                        placeholder="+1 (555) 000-0000"
-                                        value={formData.phone}
-                                        onChange={handleChange}
-                                    />
+                                    {errors.website && <p className="text-red-500 text-xs mt-1 ml-1">{errors.website}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-semibold text-gray-700 ml-1">Phone Number</label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                            <Phone className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input 
+                                            type="tel" 
+                                            name="phone"
+                                            className={`w-full pl-11 pr-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium text-gray-900 ${errors.phone ? 'border-red-400' : 'border-gray-200'}`}
+                                            placeholder="+1 (555) 000-0000"
+                                            value={formData.phone}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
+                                    {errors.phone && <p className="text-red-500 text-xs mt-1 ml-1">{errors.phone}</p>}
                                 </div>
                             </div>
 
